@@ -1,0 +1,354 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Variable.UDT.uDetailInfo.Define("RPTID",String,RPTID)
+Variable.UDT.uDetailInfo.Define("TERMINAL",String,TERMINAL)
+Variable.UDT.uDetailInfo.Define("JOB",String,JOB)
+Variable.UDT.uDetailInfo.Define("SUFFIX",String,SUFFIX)
+Variable.UDT.uDetailInfo.Define("COPY_NO",String,COPY_NO)
+Variable.UDT.uDetailInfo.Define("KEY_SEQ",String,KEY_SEQ)
+Variable.UDT.uDetailInfo.Define("ROUTER_SEQ",String,ROUTER_SEQ)
+Variable.UDT.uDetailInfo.Define("LMO",String,LMO)
+Variable.UDT.uDetailInfo.Define("BC_SEQ",String,BC_SEQ)
+Variable.UDT.uDetailInfo.Define("BC_PWC",String,BC_PWC)
+Variable.UDT.uDetailInfo.Define("START_DATE",String,START_DATE)
+Variable.UDT.uDetailInfo.Define("DUE_DATE",String,DUE_DATE)
+Variable.UDT.uDetailInfo.Define("PWC",String,PWC)
+Variable.UDT.uDetailInfo.Define("EXTRA_DESC",String,EXTRA_DESC)
+Variable.UDT.uDetailInfo.Define("UM",String,UM)
+Variable.UDT.uDetailInfo.Define("SETUP",Float,SETUP)
+Variable.UDT.uDetailInfo.Define("RUNTIME",Float,RUNTIME)
+Variable.UDT.uDetailInfo.Define("LABOR_TOTAL",Float,LABOR_TOTAL)
+Variable.UDT.uDetailInfo.Define("UNIT",Float,UNIT)
+Variable.UDT.uDetailInfo.Define("MATL_TOTAL",Float,MATL_TOTAL)
+Variable.UDT.uDetailInfo.Define("MACH",String,MACH)
+Variable.UDT.uDetailInfo.Define("COMMITTED_UNITS",Float,COMMITTED_UNITS)
+Variable.UDT.uDetailInfo.Define("COMMITTED_DOLLARS",Float,COMMITTED_DOLLARS)
+Variable.UDT.uDetailInfo.Define("BURDEN",Float,BURDEN)
+Variable.UDT.uDetailInfo.Define("ACT_HRS",Float,ACT_HRS)
+Variable.UDT.uDetailInfo.Define("EST_DLRS",Float,EST_DLRS)
+Variable.UDT.uDetailInfo.Define("ACT_DLRS",Float,ACT_DLRS)
+Variable.UDT.uDetailInfo.Define("WC_FACTOR",Float,WC_FACTOR)
+Variable.UDT.uDetailInfo.Define("PROJ_GROUP",String,PROJ_GROUP)
+Variable.UDT.uDetailInfo.Define("OPER_SORT_CODE",String,OPER_SORT_CODE)
+Variable.UDT.uDetailInfo.Define("CREW_SIZE",Float,CREW_SIZE)
+Variable.UDT.uDetailInfo.Define("FREQUENT",Float,FREQUENT)
+Variable.UDT.uDetailInfo.Define("PREV_CLSD",String,PREV_CLSD)
+Variable.UDT.uDetailInfo.Define("MAIN_COMMENT",String,MAIN_COMMENT)
+Variable.UDT.uDetailInfo.Define("LEAD_TIME",Float,LEAD_TIME)
+Variable.UDT.uDetailInfo.Define("MINIMUM_FLAG",String,MINIMUM_FLAG)
+Variable.UDT.uDetailInfo.Define("MINIMUM",Float,MINIMUM)
+Variable.UDT.uDetailInfo.Define("TOOLING_SEQ",String,TOOLING_SEQ)
+Variable.UDT.uDetailInfo.Define("HOLD_PO",String,HOLD_PO)
+Variable.UDT.uDetailInfo.Define("WC_NAME",String,WC_NAME)
+Variable.UDT.uDetailInfo.Define("PARTNO",String,PARTNO)
+Variable.UDT.uDetailInfo.Define("REC_TYPE",String,REC_TYPE)
+Variable.UDT.uDetailInfo.Define("WO_USER_FLD",String,WO_USER_FLD)
+Variable.UDT.uDetailInfo.Define("SERIAL_NUMBER",String,SERIAL_NUMBER)
+Variable.UDT.uDetailInfo.Define("PWC_PART",String,PWC_PART)
+Variable.UDT.uDetailInfo.Define("FILLER50",String,FILLER50)
+Variable.uGlobal.uBI.Declare("uDetailInfo")
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'Connections
+F.Intrinsic.Control.CallSub(Connections)
+
+F.Intrinsic.Control.If(V.Caller.Hook,=,48558)
+	'Save Terminal,Split WO-Suffix,Existing WO-Suffix
+	F.Intrinsic.Control.CallSub(Savesplitwo)
+F.Intrinsic.Control.ElseIf(V.Caller.Hook,=,16800)
+	'Print Split WO
+	F.Intrinsic.Control.CallSub(Printsplitwo)
+Function.Intrinsic.Control.ElseIf(V.Caller.Hook, =, 16090)	
+	'Modify data in BI table
+	Function.Intrinsic.Control.CallSub(markclosedcomments)	
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3049_SPLIT_WO_EXT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.SaveSplitWO.Start
+F.Intrinsic.Control.SetErrorHandler("SaveSplitWO_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sCommentSeq.Declare(String)
+'Save Split WO info and Existing WO Info.
+
+V.Local.sSql.Declare(String)
+Variable.Local.sExistingWO.Declare(String)
+
+'We are passing the existing WO so we can pick out the closed sequences and void printing them on the report
+Function.Intrinsic.String.Build("SPLIT*!*{0}-{1}", Variable.Passed.000014, Variable.Passed.000007, Variable.Local.sExistingWO)
+Variable.Passed.GLOBAL.Set(Variable.Local.sExistingWO)
+
+'Get rid of other terminal info for current user
+F.intrinsic.string.build("delete from GCG_3049_SPLIT_WO where TERMINAL =  '{0}'",V.Caller.Terminal,V.Local.sSql)
+F.ODBC.Connection!conX.Execute(V.Local.sSql)
+
+F.intrinsic.string.build("delete from GCG_3049_SPLIT_DTL where TERMINAL =  '{0}'",V.Caller.Terminal,V.Local.sSql)
+F.ODBC.Connection!conX.Execute(V.Local.sSql)
+
+'Save to Table.
+F.ODBC.Connection!conX.OpenRecordsetRW("rst","Select * from GCG_3049_SPLIT_WO")
+F.ODBC.conX!rst.AddNew
+F.ODBC.conX!rst.Set!TERMINAL(V.Caller.Terminal)
+F.ODBC.conX!rst.Set!JOB(V.Passed.000014.Trim)
+F.ODBC.conX!rst.Set!SUFFIX(V.Passed.000007.Trim)
+F.ODBC.conX!rst.Set!SPLIT_JOB(V.Passed.000010.Trim)
+F.ODBC.conX!rst.Set!SPLIT_SUFFIX(V.Passed.000011.Trim)
+F.ODBC.conX!rst.Update
+F.ODBC.conX!rst.Close
+
+'Save OPERATIONS NOT CLOSED from Existing WO
+F.intrinsic.string.build("Select JOB,SUFFIX,SEQ from v_JOB_OPERATIONS where FLAG_CLOSED <> 'Y' and JOB = '{0}' and SUFFIX = '{1}'",V.Passed.000014,V.Passed.000007,V.Local.sSql)
+F.ODBC.Connection!conX.OpenRecordsetRO("rst",V.Local.sSql)
+F.Intrinsic.Control.If(V.ODBC.conX!rst.EOF,<>,True)
+	F.Intrinsic.Control.DoUntil(V.ODBC.conX!rst.EOF,=,True)
+		'Keep adding Sequences that are still Open
+		F.ODBC.Connection!conX.OpenRecordsetRW("rstDtl","Select * from GCG_3049_SPLIT_DTL")
+		F.ODBC.conX!rstDtl.AddNew
+		F.ODBC.conX!rstDtl.Set!TERMINAL(V.Caller.Terminal)
+		F.ODBC.conX!rstDtl.Set!JOB(V.Passed.000010.Trim)
+		F.ODBC.conX!rstDtl.Set!SUFFIX(V.Passed.000011.Trim)
+		F.ODBC.conX!rstDtl.Set!SEQ(V.ODBC.conX!rst.FieldValTrim!SEQ)
+		F.ODBC.conX!rstDtl.Update
+		
+		F.Intrinsic.String.Build("SELECT * FROM V_WO_SEQ_COMMENTS WHERE WO = '{0}' AND WO_SUFFIX = '{1}' AND WO_SEQ = '{2}'",V.Passed.000014,V.Passed.000007,V.ODBC.conX!rst.FieldValTrim!SEQ,V.Local.sSQL)
+		F.ODBC.Connection!conX.OpenLocalRecordSetRW("rstComment",V.Local.sSQL)
+		
+		F.Intrinsic.Control.If(V.ODBC.conX!rstComment.EOF,<>,True)
+			F.ODBC.conX!rstDtl.AddNew
+			F.ODBC.conX!rstDtl.Set!TERMINAL(V.Caller.Terminal)
+			F.ODBC.conX!rstDtl.Set!JOB(V.Passed.000010.Trim)
+			F.ODBC.conX!rstDtl.Set!SUFFIX(V.Passed.000011.Trim)
+			F.Intrinsic.Math.Add(V.ODBC.conX!rst.FieldValLong!SEQ,1,V.Local.sCommentSeq)
+			F.Intrinsic.String.LPad(V.Local.sCommentSeq,"0",6,V.Local.sCommentSeq)
+			F.ODBC.conX!rstDtl.Set!SEQ(V.Local.sCommentSeq)
+			F.ODBC.conX!rstDtl.Update		
+		F.Intrinsic.Control.EndIf
+		
+		F.ODBC.conX!rstComment.Close
+		F.ODBC.conX!rstDtl.Close
+		F.ODBC.conX!rst.MoveNext
+	F.Intrinsic.Control.Loop
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("SaveSplitWO_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3049_SPLIT_WO_EXT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+Program.Sub.SaveSplitWO.End
+
+Program.Sub.PrintSplitWO.Start
+F.Intrinsic.Control.SetErrorHandler("PrintSplitWO_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.sParams.Declare(String)
+V.Local.sSql.Declare(String)
+V.Local.iRet.Declare(Long)
+V.Local.iRptID.Declare(Long)
+Variable.Local.sCheck.Declare(String)
+Variable.Local.sOrgJob.Declare(String)
+Variable.Local.sOrgSuff.Declare(String)
+
+Function.Intrinsic.String.Split(Variable.Passed.GLOBAL, "*!*", Variable.Local.sCheck)
+
+Function.Intrinsic.Control.If(Variable.Local.sCheck(0), <>, "SPLIT")
+	Function.Intrinsic.Control.ExitSub
+Function.Intrinsic.Control.EndIf
+
+'Get rpt ID
+F.Global.BI.GetIDFromName("GCG_3049_SPLIT_WO_EXT.rpt",V.Local.iRptID)
+
+F.Intrinsic.String.Build("Select * from GCG_3049_SPLIT_WO where SPLIT_JOB = '{0}' and SPLIT_SUFFIX = '{1}'",V.Passed.009000.Trim,V.Passed.009001.Trim,V.Local.sSql)
+F.ODBC.Connection!conX.OpenRecordsetRO("rst",V.Local.sSql)
+F.Intrinsic.Control.If(V.ODBC.conX!rst.EOF,<>,True)
+	'Prompt Print Split WO?
+	F.Intrinsic.String.Build("Print Split WO:{0}-{1}",V.Passed.009000.Trim,V.Passed.009001.Trim,V.Local.sRet)
+	F.Intrinsic.UI.Sleep(5)
+	'Sleep for 5 seconds so APS can schedule before printing.
+	F.Intrinsic.UI.Msgbox(V.Local.sRet,"Print Split WO?",4,V.Local.iRet)
+	F.Intrinsic.Control.If(V.Local.iRet,=,6)
+		'if Yes then Print
+		F.Intrinsic.String.Build("{0}!*!{1}!*!{2}",V.Passed.009000.Trim,V.Passed.009001.Trim,V.Local.iRptID,V.Local.sParams)
+		F.Global.General.CallWrapperSync(900100,V.Local.sParams)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Else
+	'End if NO records
+	F.ODBC.conX!rst.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndIf
+F.ODBC.conX!rst.Close
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("PrintSplitWO_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3049_SPLIT_WO_EXT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+Program.Sub.PrintSplitWO.End
+
+Program.Sub.Connections.Start
+F.Intrinsic.Control.SetErrorHandler("Connections_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sCon.Declare(String)
+'Remove _ if it is not within your DSNs.
+F.Intrinsic.String.Concat("Global_",V.Caller.CompanyCode,V.Local.sCon)
+'F.ODBC.Connection!%CON%.OpenConnection(V.Local.sCon,"Master","master")
+F.ODBC.Connection!conX.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass,72000)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Connections_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3049_SPLIT_WO_EXT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Connections.End
+
+Program.Sub.MarkClosedComments.Start
+Variable.Local.sRet.Declare(String)
+Variable.Local.iRptID.Declare(String)
+Variable.Local.sSql.Declare(String)
+Variable.Local.sOrgJob.Declare(String)
+Variable.Local.sOrgSuff.Declare(String)
+Variable.Local.sClsdSeqs.Declare(String)
+Variable.Local.sNewJob.Declare(String)
+Variable.Local.sNewSuff.Declare(String)
+Variable.Local.iCount.Declare(Long)
+Variable.Local.iLast.Declare(Long)
+Variable.Local.sParam.Declare(String)
+Variable.Local.sSeq.Declare(String)
+
+'Added by FEQ on 11/9/16
+'This module was created to suppress comments for closed sequences on new Split Work Orders.
+'make sure we are proceeding only when the report ID's match
+F.Global.BI.GetIDFromName("GCG_3049_SPLIT_WO_EXT.rpt",V.Local.iRptID)
+Variable.Local.sRet.Set(Variable.Passed.009001)
+
+Function.Intrinsic.Control.If(Variable.Local.sRet.Long, <>, Variable.Local.iRptID.Long)
+	Function.Intrinsic.Control.ExitSub
+Function.Intrinsic.Control.EndIf
+
+Function.Intrinsic.String.Build("Select * from GCG_3049_SPLIT_WO where Terminal = {0} ", Variable.Caller.Terminal, Variable.Local.sSql)
+Function.ODBC.Connection!conX.OpenLocalRecordsetRO("rst0", Variable.Local.sSql)
+Function.Intrinsic.Control.If(Variable.ODBC.conX!rst0.EOF, =, False)
+	Variable.Local.sOrgJob.Set(Variable.ODBC.conX!rst0.FieldValTrim!JOB)
+	Variable.Local.sOrgSuff.Set(Variable.ODBC.conX!rst0.FieldValTrim!SUFFIX)
+	Variable.Local.sNewJob.Set(Variable.ODBC.conX!rst0.FieldValTrim!SPLIT_JOB)
+	Variable.Local.sNewSuff.Set(Variable.ODBC.conX!rst0.FieldValTrim!SPLIT_SUFFIX)
+	'We begin by making an array of closed sequences from the original work order.	
+	Function.Intrinsic.String.Build("Select SEQ from JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and FLAG_CLOSED = 'Y' ", Variable.Local.sOrgJob, Variable.Local.sOrgSuff, Variable.Local.sSql)
+	Function.ODBC.Connection!conX.ExecuteAndReturn(Variable.Local.sSql, Variable.Local.sClsdSeqs)
+	'Check that closed sequences exist
+	Function.Intrinsic.Control.If(Variable.Local.sClsdSeqs.Trim, =, "")
+		Function.Intrinsic.Control.ExitSub
+	Function.Intrinsic.Control.EndIf
+	
+	'Split sequences
+	Function.Intrinsic.String.Split(Variable.Local.sClsdSeqs, "*!*#$#", Variable.Local.sClsdSeqs)
+	
+	'We are unable to manually modify the data on the BI table, so we will pull data that will be used for the report into a UDT, modify it, and then save it back into the BI table
+	Function.Intrinsic.String.Build("Select * from BI_BAR_DETAIL where TERMINAL = '{0}' and JOB = '{1}' ", Variable.Caller.Terminal, Variable.Local.sNewJob, Variable.Local.sSql)
+	Function.Intrinsic.String.Build("{0} and SUFFIX = '{1}' ", Variable.Local.sSql, Variable.Local.sNewSuff, Variable.Local.sSql)
+	Function.ODBC.Connection!conX.OpenLocalRecordsetRW("rstD", Variable.Local.sSql)
+	Function.Intrinsic.Variable.LoadUDTFromRecordset("conX", "rstD", "V.uGlobal.uBI", True) 
+	Function.ODBC.conX!rstD.Close
+	
+	'The original data needs to be deleted to avoid duplication
+	Function.Intrinsic.String.Build("Delete from BI_BAR_DETAIL where TERMINAL = '{0}' and JOB = '{1}' ", Variable.Caller.Terminal, Variable.Local.sNewJob, Variable.Local.sSql)
+	Function.Intrinsic.String.Build("{0} and SUFFIX = '{1}' ", Variable.Local.sSql, Variable.Local.sNewSuff, Variable.Local.sSql)	
+	Function.ODBC.Connection!conX.Execute(Variable.Local.sSql)
+	Function.Intrinsic.Math.Add(Variable.Local.sClsdSeqs.UBound, -1, Variable.Local.iLast)
+	'The comments for the closed sequences are consecutive numbers from the closed sequence. We need to mark them to suppress them on the report.
+	Function.Intrinsic.Control.For(Variable.Local.iCount, 0, Variable.Local.sClsdSeqs.UBound, 1)
+		Function.Intrinsic.String.Split(Variable.Local.sClsdSeqs(Variable.Local.iCount), "*!*", Variable.Local.sSeq)
+	
+	
+		Function.Intrinsic.Control.Do
+			Variable.Local.sRet.Set("")
+			Function.Intrinsic.Math.Add(Variable.Local.sSeq.Long, 1, Variable.Local.sSeq.Long)
+			Function.Intrinsic.String.LPad(Variable.Local.sSeq, "0", 6, Variable.Local.sSeq)
+			Function.Intrinsic.Variable.UDTSeek(V.uGlobal.uBI!ROUTER_SEQ, Variable.Local.sSeq, 4, Variable.Local.sRet)
+			Function.Intrinsic.Control.If(Variable.Local.sRet, =, "")
+				Function.Intrinsic.Control.ExitDo
+			Function.Intrinsic.Control.Else
+				'We are setting "CC" to REC_TYPE to use as a value to suppress comment lines
+				Function.Intrinsic.Variable.UDTMultiSeekSet(V.uGlobal.uBI!ROUTER_SEQ, V.Local.sSeq, V.uGlobal.uBI!REC_TYPE, "CC")
+			Function.Intrinsic.Control.EndIf
+		Function.Intrinsic.Control.Loop
+	Function.Intrinsic.Control.Next(Variable.Local.iCount)
+	Function.Intrinsic.String.Build("Select * from BI_BAR_DETAIL where TERMINAL = '{0}' and JOB = '{1}' ", Variable.Caller.Terminal, Variable.Local.sNewJob, Variable.Local.sSql)
+	Function.Intrinsic.String.Build("{0} and SUFFIX = '{1}' ", Variable.Local.sSql, Variable.Local.sNewSuff, Variable.Local.sSql)
+	Function.ODBC.Connection!conX.OpenLocalRecordsetRW("rstD", Variable.Local.sSql)
+	Function.Intrinsic.Variable.SaveUDTToRecordset("conX", "rstD", "V.uGlobal.uBI")
+	Function.ODBC.conX!rstD.Close
+	'For some reason, the UDT sometimes has a record where everything is blanked out. This could provide duplicate errors in the future. 
+	Function.ODBC.Connection!conX.Execute("Delete from BI_BAR_DETAIL where Terminal = '' ")
+Function.Intrinsic.Control.EndIf
+Function.ODBC.conX!rst0.Close
+Program.Sub.MarkClosedComments.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_3000_SPLIT_WO_EXT$}$SILAS FULSOM$}$11/23/2015$}$False
+${$1$}$$}$$}$1$}$16800$}$JBS0011-OK-BTN-POST-HOOK$}$11/23/2015 11:16:39 AM$}$(Program: JB0011GI; Screen: JBS0011)
+
+${$1$}$$}$$}$0$}$48558$}$POST SAVE$}$11/23/2015 10:50:09 AM$}$(Program: JB0010S; Screen: JB0010SA)
+
+${$2$}$$}$$}$1$}$4$}$Report$}$11/23/2015 10:59:52 AM$}$GCG_3049_SPLIT_WO_EXT.rpt
+${$2$}$$}$$}$0$}$4$}$TABLES$}$11/23/2015 10:50:09 AM$}$create table "GCG_3049_SPLIT_WO"(
+"TERMINAL" char(3),
+"JOB" char(6),
+"SUFFIX" char(3),
+"SPLIT_JOB" char(6),
+"SPLIT_SUFFIX" char(3));
+
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$Description During SFC>File>Work Orders>New(Split)
+After the split work order is saved, the Barcoded Work Order(Extended) will print for the Split work order.
+Customize the Barcoded Work Order to show the pieces completed from the parent work order.
+
+Specification CORE: Add hook support to WO Split Screen.(JB0010s-
+JBS0010SA).
+
+GAB:
+ON new Post Save hook:48558
+1. Save record to a custom table storing the parent work order, and the split work order. Look at JOB OPERATIONS for the parent work order and record JOB,Suffix,Sequence for both work orders(split and parent). Use this record to do the suppression formulas in crystal **see below.
+
+On Hook 16800 Post Schedule WO OK Button.
+2. Use callwrapper to print the barcoded work order(extended) for the split work order.
+
+Crystal:
+**Developer: Get the latest version of the modified report attached to this call prior to starting development.
+
+1. Show Open Sequence Details for Work Order as normal.
+
+2. Suppress Closed/Completed sequences from the work order it was split from.
+
+**The fields that are already added by the customer on this report are for hand written checks done on the work order. The sub-report will NOT populate any of that additional data.
+
+Program.Sub.Comments.End
+
